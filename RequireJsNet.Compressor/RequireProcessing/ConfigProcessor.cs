@@ -94,6 +94,11 @@ namespace RequireJsNet.Compressor
 
         protected string GetEntryPointPath()
         {
+            // prevent double slash
+            if (ProjectPath[ProjectPath.Length - 1] == Path.DirectorySeparatorChar)
+            {
+                ProjectPath = ProjectPath.Remove(ProjectPath.Length - 1);
+            }
             return Path.GetFullPath(Path.Combine(ProjectPath + Path.DirectorySeparatorChar, DefaultScriptDirectory));
         }
     }

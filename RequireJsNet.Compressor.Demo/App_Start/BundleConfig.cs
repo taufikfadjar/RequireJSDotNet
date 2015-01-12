@@ -1,5 +1,7 @@
 ﻿using System.Web;
 using System.Web.Optimization;
+using RequireJsNet.Compressor;
+using System.Text;
 
 namespace RequireJsNet.Compressor.Demo
 {
@@ -17,6 +19,8 @@ namespace RequireJsNet.Compressor.Demo
             bundles.Add(new StyleBundle("~/Content/css").Include(
                       "~/Content/bootstrap.css",
                       "~/Content/site.css"));
+
+            new RequireWebOptimization(HttpContext.Current.Server.MapPath("/"), bundles).CreateAndRegisterBundles();
         }
     }
 }
