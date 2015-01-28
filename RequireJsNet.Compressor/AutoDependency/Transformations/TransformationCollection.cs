@@ -31,7 +31,7 @@ namespace RequireJsNet.Compressor.Transformations
             var ordered = Transformations.OrderByDescending(r => r.GetAffectedRange()[0]);
             foreach (var transformation in ordered)
             {
-                transformation.Execute(ref script);    
+                 transformation.Execute(ref script);    
             }
         }
     }

@@ -50,10 +50,13 @@
     },
     "autoBundles": {
         "full": {
-            "outputPath": "bundles\\auto\\",
+            "outputPath": "~/bundles/auto",
             "include": [
                 {
-                    "directory": "\\controllers\\Root\\"
+                    "directory": "controllers/root"
+                },
+                {                     
+                     "file": "Controllers/Root/Home/index"
                 }
             ]
         }

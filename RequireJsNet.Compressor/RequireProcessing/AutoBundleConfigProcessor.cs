@@ -1,214 +1,186 @@
-﻿// RequireJS.NET
+// RequireJS.NET
 // Copyright VeriTech.io
 // http://veritech.io
 // Dual licensed under the MIT and GPL licenses:
 // http://www.opensource.org/licenses/mit-license.php
 // http://www.gnu.org/licenses/gpl.html
 
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Text;
-
+using System.Web;
+using System.Web.Optimization;
 using RequireJsNet.Compressor.AutoDependency;
+using RequireJsNet.Compressor.Helper;
 using RequireJsNet.Compressor.Models;
 using RequireJsNet.Configuration;
-using RequireJsNet.Helpers;
 using RequireJsNet.Models;
 
 namespace RequireJsNet.Compressor.RequireProcessing
 {
-    internal class AutoBundleConfigProcessor : ConfigProcessor
-    {
-        private Encoding encoding;
+	internal class AutoBundleConfigProcessor : ConfigProcessor
+	{
+		private PathResolver Resolver;
 
-        public AutoBundleConfigProcessor(string projectPath, string packagePath, string entryPointOverride, List<string> filePaths, Encoding encoding)
-        {
-            ProjectPath = projectPath;
-            FilePaths = filePaths;
-            OutputPath = projectPath;
-            EntryOverride = entryPointOverride;
-            this.encoding = encoding;
-            if (!string.IsNullOrWhiteSpace(packagePath))
-            {
-                OutputPath = packagePath;
-            }
+		public AutoBundleConfigProcessor(List<string> filePaths)
+		{
+			AlreadyProcessedFileNames = new List<string>();
+			FilePaths = filePaths;
 
-            EntryPoint = this.GetEntryPointPath();
-        }
+			EntryPoint = "~/Scripts/";
+			Resolver = new PathResolver(EntryPoint);
+		}
 
-        public override List<Bundle> ParseConfigs()
-        {
-            var bundles = new List<Bundle>();
-            if (!Directory.Exists(ProjectPath))
-            {
-                throw new DirectoryNotFoundException("Could not find project directory.");
-            }
+		public override BundleCollection ParseConfigs()
+		{
+			var bundles = new BundleCollection();
+			
 
-            FindConfigs();
+			FindConfigs();
 
-            var loader = new ConfigLoader(
-                FilePaths,
-                new ExceptionThrowingLogger(),
-                new ConfigLoaderOptions { ProcessBundles = true });
+			var loader = new ConfigLoader(
+				FilePaths,
+				new ExceptionThrowingLogger(),
+				new ConfigLoaderOptions { ProcessBundles = true });
 
-            Configuration = loader.Get();
-            
-            foreach (var bundle in Configuration.AutoBundles.Bundles)
-            {
-                var files = new List<string>();
-                var bundleResult = new Bundle
-                                       {
-                                           Files = new List<FileSpec>(),
-                                           Output = this.GetOutputPath(bundle.OutputPath, bundle.Id),
-                                           ContainingConfig = bundle.ContainingConfig,
-                                           BundleId = bundle.Id
-                                       };
-                bundles.Add(bundleResult);
+			// Load Configurations
+			Configuration = loader.Get();
 
-                var tempFileList = new List<RequireFile>();
+			// new builder instance includes the set configuration
+			var builder = new RequireBuilder();
+			
+			// iterate over all bundle definitions of the configuration and build the equivalent web optimization bundles
+			foreach (var bundle in Configuration.AutoBundles.Bundles)
+			{
+				var bundleResult = new RequireCompressorBundle(Resolver.GetOutputPath(bundle.OutputPath, bundle.Id), builder)
+									   {
+											ContainingConfig = bundle.ContainingConfig,
+									   };
 
-                foreach (var include in bundle.Includes)
-                {
-                    if (!string.IsNullOrEmpty(include.File))
-                    {
-                        files.Add(this.ResolvePhysicalPath(include.File));
-                    }
-                    else if(!string.IsNullOrEmpty(include.Directory))
-                    {
-                        var absDirectory = this.GetAbsoluteDirectory(include.Directory);
+				// add bundle to collection
+				bundles.Add(bundleResult);
 
-                        // not using filter for this since we're going to use the one the user provided in the future
-                        var dirFiles = Directory.GetFiles(absDirectory, "*", SearchOption.AllDirectories).Where(r => Path.GetExtension(r) == ".js").ToList();
-                        files.AddRange(dirFiles);
-                    }
-                }
+				// construct queue utilities
+				var includeQueue = new Queue<AutoBundleItem>();
+				var alreadyProcessedFileNames = new List<string>();
 
-                files = files.Distinct().ToList();
+				// initially enqueuing
+				EnqueueBundles(bundle.Includes, includeQueue, alreadyProcessedFileNames);
 
-                var fileQueue = new Queue<string>();
-                this.EnqueueFileList(tempFileList, fileQueue, files);
-                
+				// construct dependency resolver
+				var processor = new ScriptProcessor(Configuration, Resolver);
 
-                while (fileQueue.Any())
-                {
-                    var file = fileQueue.Dequeue();
-                    var fileText = File.ReadAllText(file, encoding);
-                    var relativePath = PathHelpers.GetRelativePath(file, EntryPoint + Path.DirectorySeparatorChar);
-                    var processor = new ScriptProcessor(relativePath, fileText, Configuration);
-                    processor.Process();
-                    var result = processor.ProcessedString;
-                    // Ignore files from CDN, that start with "//"
-                    var dependencies = processor.Dependencies.Where(r => !r.StartsWith("//")).Select(r => this.ResolvePhysicalPath(r)).Distinct().ToList();
-                    tempFileList.Add(new RequireFile
-                                         {
-                                             Name = file,
-                                             Content = result,
-                                             Dependencies = dependencies
-                                         });
+				// iterate over the includes
+				while(includeQueue.Any())
+				{
+					var include = includeQueue.Dequeue();
 
-                    this.EnqueueFileList(tempFileList, fileQueue, dependencies);
-                }
+					if (!string.IsNullOrEmpty(include.File))
+					{
+						// include file
+						var filePath = Resolver.RequirePathToVirtualPath(include.File);
+		
+						var processedFile = processor.Process(filePath);
+						bundleResult.Include(processedFile);
+						alreadyProcessedFileNames.Add(include.File);
 
-                while (tempFileList.Any())
-                {
-                    var addedFiles = bundleResult.Files.Select(r => r.FileName).ToList();
-                    var noDeps = tempFileList.Where(r => !r.Dependencies.Any()
-                                                        || r.Dependencies.All(x => addedFiles.Contains(x))).ToList();
-                    if (!noDeps.Any())
-                    {
-                        noDeps = tempFileList.ToList();
-                    }
+						EnqueueBundles(processedFile.Dependencies, includeQueue, alreadyProcessedFileNames);
+					}
+					else if (!string.IsNullOrEmpty(include.Directory))
+					{
 
-                    foreach (var requireFile in noDeps)
-                    {
-                        bundleResult.Files.Add(new FileSpec(requireFile.Name, string.Empty) { FileContent = requireFile.Content });
-                        tempFileList.Remove(requireFile);
-                    }    
-                }
-            }
+						// get virtual directory path
+						var virtualDirectoryPath = Resolver.RequirePathToVirtualPath(include.Directory, false);
+						// get absolute directory path
+						var absoluteDirectoryPath = HttpContext.Current.Server.MapPath(virtualDirectoryPath);
 
-            this.WriteOverrideConfigs(bundles);
+						// get all js files in directory and subdirectories
+						var files = Directory.EnumerateFiles(absoluteDirectoryPath, "*.js", SearchOption.AllDirectories);
 
-            return bundles;
-        }
+						// convert to virtual paths and include in bundle
+						foreach (var file in files.Select(r => virtualDirectoryPath + r.Replace(absoluteDirectoryPath, "").Replace("\\", "/")))
+						{
+							var processedFile = processor.Process(file);
+							bundleResult.Include(processedFile);
+							alreadyProcessedFileNames.Add(Resolver.VirtualPathToRequirePath(file));
 
-        private void WriteOverrideConfigs(List<Bundle> bundles)
-        {
-            var groupings = bundles.GroupBy(r => r.ContainingConfig).ToList();
-            foreach (var grouping in groupings)
-            {
-                var path = RequireJsNet.Helpers.PathHelpers.GetOverridePath(grouping.Key);
-                var writer = WriterFactory.CreateWriter(path, null);
-                var collection = this.ComposeCollection(grouping.ToList());
-                writer.WriteConfig(collection);    
-            }
-        }
+							EnqueueBundles(processedFile.Dependencies, includeQueue, alreadyProcessedFileNames);
+						}
+					}
+				}
+	
+			}
 
-        private ConfigurationCollection ComposeCollection(List<Bundle> bundles)
-        {
-            var conf = new ConfigurationCollection();
-            conf.Overrides = new List<CollectionOverride>();
-            foreach (var bundle in bundles)
-            {
-                var scripts = bundle.Files.Select(r => PathHelpers.GetRequireRelativePath(EntryPoint, r.FileName)).ToList();
-                var paths = new RequirePaths
-                                {
-                                    PathList = new List<RequirePath>()
-                                };
-                foreach (var script in scripts)
-                {
-                    paths.PathList.Add(new RequirePath
-                                           {
-                                               Key = script,
-                                               Value = PathHelpers.GetRequireRelativePath(EntryPoint, bundle.Output)
-                                           });
-                }
+			Context = new BundleContext(new HttpContextWrapper(HttpContext.Current),bundles, EntryPoint);
 
-                var over = new CollectionOverride
-                               {
-                                   BundleId = bundle.BundleId,
-                                   BundledScripts = scripts,
-                                   Paths = paths
-                               };
-                conf.Overrides.Add(over);
-            }
+			this.WriteOverrideConfigs(bundles);
 
-            return conf;
-        }
+			return bundles;
+		}
 
-        private void EnqueueFileList(List<RequireFile> fileList, Queue<string> queue, List<string> files)
-        {
-            foreach (var file in files)
-            {
-                if (!fileList.Where(r => r.Name.ToLower() == file.ToLower()).Any()
-                    && !queue.Where(r => r.ToLower() == file.ToLower()).Any())
-                {
-                    queue.Enqueue(file);
-                }
-            }
-        }
 
-        private string GetAbsoluteDirectory(string relativeDirectory)
-        {
-            string entry = this.EntryPoint;
-            if (!string.IsNullOrEmpty(EntryOverride))
-            {
-                entry = this.EntryOverride;
-            }
+		/// <summary>
+		/// Pushes a set of bundles into a queue if the do not already exists in the queue or
+		/// in an exclude set
+		/// </summary>
+		/// <param name="bundles">The set of bundles</param>
+		/// <param name="queue">The existing queue</param>
+		/// <param name="excludeItems">The set of file names to be excluded from enqueuing</param>
+		private static void EnqueueBundles(IEnumerable<AutoBundleItem> bundles, Queue<AutoBundleItem> queue, IEnumerable<string> excludeItems)
+		{
+			foreach (var bundle in bundles)
+			{
+				if (!excludeItems.Any(r => string.Equals(r, bundle.File, StringComparison.CurrentCultureIgnoreCase))
+					&& !queue.Any(r => string.Equals(r.File, bundle.File, StringComparison.CurrentCultureIgnoreCase)))
+				{
+					queue.Enqueue(bundle);
+				}
+			}
+		}
 
-            relativeDirectory = relativeDirectory.Replace("/", "\\");
-            if (relativeDirectory.StartsWith("\\"))
-            {
-                relativeDirectory = relativeDirectory.Substring(1);
-            }
-            // prevent double slash
-            if (entry.EndsWith("\\"))
-            {
-                entry = entry.Remove(entry.Length - 1);
-            }
+		private void WriteOverrideConfigs(BundleCollection bundles)
+		{
+			var groupings = bundles.GroupBy(r => ((RequireCompressorBundle)r).ContainingConfig).ToList();
+			foreach (var grouping in groupings)
+			{
+				var path = RequireJsNet.Helpers.PathHelpers.GetOverridePath(grouping.Key);
+				var writer = WriterFactory.CreateWriter(path, null);
+				var collection = this.ComposeCollection(grouping.ToList());
+				writer.WriteConfig(collection);    
+			}
+		}
 
-            return Path.Combine(entry + Path.DirectorySeparatorChar, relativeDirectory);
-        }
-    }
+		private ConfigurationCollection ComposeCollection(IEnumerable<Bundle> bundles)
+		{
+			var conf = new ConfigurationCollection();
+			conf.Overrides = new List<CollectionOverride>();
+			foreach (var bundle in bundles)
+			{
+				var scripts = bundle.EnumerateFiles(Context).Select(r => Resolver.VirtualPathToRequirePath(r.IncludedVirtualPath)).ToList();
+				var paths = new RequirePaths
+								{
+									PathList = new List<RequirePath>()
+								};
+				foreach (var script in scripts)
+				{
+					paths.PathList.Add(new RequirePath
+										   {
+											   Key = script,
+											   Value = Resolver.VirtualPathToRequirePath(bundle.Path)
+										   });
+				}
+
+				var over = new CollectionOverride
+							   {
+								   BundleId = bundle.Path,
+								   BundledScripts = scripts,
+								   Paths = paths
+							   };
+				conf.Overrides.Add(over);
+			}
+
+			return conf;
+		}
+	}
 }

@@ -83,7 +83,7 @@
     "overrides": {
         "amplify": {
             "paths": {
-                "jquery-validate": "lib/vendor/jquery/plugins/validate/jquery.validate",
+                "jquery-validate": "lib/vendor/jquery/plugins/validate/jquery.validate"
             },
             "shim": {
                 "amplify": {
@@ -100,27 +100,13 @@
     },
     "autoBundles": {
         "root": {
-            "outputPath": "bundles\\auto\\",
+            "outputPath": "~/bundles/auto/",
             "include": [
                 {
-                    "directory": "\\controllers\\Root\\"
+                    "directory": "scripts/controllers/root/home"
                 },
                 {
-                    "file": "\\controllers\\Root\\Home\\index"
-                },
-                {
-                    "bundleId": "test"
-                }
-            ],
-            "exclude": [ 
-                {
-                    "directory": "\\controllers\\Root\\"
-                },
-                {
-                    "file": "\\controllers\\Root\\Home\\index"
-                },
-                {
-                    "bundleId": "test"
+                    "file": "scripts/controllers/root/home/index"
                 }
             ]
         }
