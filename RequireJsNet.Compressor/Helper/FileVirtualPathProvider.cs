@@ -8,12 +8,18 @@ using System.Web.Hosting;
 
 namespace RequireJsNet.Compressor.Helper
 {
+		/// <summary>
+		/// Provides a way to read virtual files
+		/// </summary>
 		internal class FileVirtualPathProvider : VirtualPathProvider
 		{
+			/// <inheritdoc />
 			private bool _ensureExists = true;
 
+			/// <inheritdoc />
 			public string ApplicationPath { get; set; }
 
+			/// <inheritdoc />
 			internal bool EnsureExists
 			{
 				get
@@ -26,6 +32,7 @@ namespace RequireJsNet.Compressor.Helper
 				}
 			}
 
+			/// <inheritdoc />
 			public FileVirtualPathProvider(string applicationPath)
 			{
 				if (string.IsNullOrEmpty(applicationPath))
@@ -33,12 +40,14 @@ namespace RequireJsNet.Compressor.Helper
 				this.ApplicationPath = applicationPath;
 			}
 
+			/// <inheritdoc />
 			public string MapPath(string virtualPath)
 			{
 				string oldValue = this.ApplicationPath.EndsWith("/", StringComparison.OrdinalIgnoreCase) ? "~/" : "~";
 				return virtualPath.Replace(oldValue, this.ApplicationPath);
 			}
 
+			/// <inheritdoc />
 			public override bool FileExists(string virtualPath)
 			{
 				if (this.EnsureExists)
@@ -47,6 +56,7 @@ namespace RequireJsNet.Compressor.Helper
 					return true;
 			}
 
+			/// <inheritdoc />
 			public override bool DirectoryExists(string virtualDir)
 			{
 				if (this.EnsureExists)
@@ -55,18 +65,21 @@ namespace RequireJsNet.Compressor.Helper
 					return true;
 			}
 
+			/// <inheritdoc />
 			public override VirtualFile GetFile(string virtualPath)
 			{
 				string str = this.MapPath(virtualPath);
 				return (VirtualFile)new FileVirtualPathProvider.FileInfoVirtualFile(str, new FileInfo(str));
 			}
 
+			/// <inheritdoc />
 			public override VirtualDirectory GetDirectory(string virtualDir)
 			{
 				string str = this.MapPath(virtualDir);
 				return (VirtualDirectory)new FileVirtualPathProvider.DirectoryInfoVirtualDirectory(str, new DirectoryInfo(str));
 			}
 
+			/// <inheritdoc />
 			internal class FileInfoVirtualFile : VirtualFile
 			{
 				public FileInfo File { get; set; }
@@ -83,10 +96,13 @@ namespace RequireJsNet.Compressor.Helper
 				}
 			}
 
+			/// <inheritdoc />
 			internal class DirectoryInfoVirtualDirectory : VirtualDirectory
 			{
+				/// <inheritdoc />
 				public DirectoryInfo Directory { get; set; }
 
+				/// <inheritdoc />
 				public override IEnumerable Files
 				{
 					get
@@ -98,6 +114,7 @@ namespace RequireJsNet.Compressor.Helper
 					}
 				}
 
+				/// <inheritdoc />
 				public override IEnumerable Children
 				{
 					get
@@ -106,6 +123,7 @@ namespace RequireJsNet.Compressor.Helper
 					}
 				}
 
+				/// <inheritdoc />
 				public override IEnumerable Directories
 				{
 					get
@@ -114,6 +132,7 @@ namespace RequireJsNet.Compressor.Helper
 					}
 				}
 
+				/// <inheritdoc />
 				public DirectoryInfoVirtualDirectory(string virtualPath, DirectoryInfo directory)
 					: base(virtualPath)
 				{

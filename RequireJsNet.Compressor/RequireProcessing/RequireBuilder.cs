@@ -1,14 +1,17 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Security.Cryptography;
 using System.Text;
 using System.Web.Optimization;
 using RequireJsNet.Compressor.Helper;
 using RequireJsNet.Compressor.Models;
-using RequireJsNet.Models;
 
 namespace RequireJsNet.Compressor.RequireProcessing
 {
+	/// <summary>
+	/// Builds require bundles
+	/// </summary>
 	internal class RequireBuilder : IBundleBuilder
 	{
 		/// <summary>
@@ -45,14 +48,14 @@ namespace RequireJsNet.Compressor.RequireProcessing
 			var responseBuilder = new StringBuilder();
 
 			// Remove duplicates and iterate over files
-			foreach (var file in files.Distinct(new BundleFileEqualityComparer()))
+			foreach (var file in files.Distinct(new BundleEqualityComparer()))
 			{
 				var fileKey = file.IncludedVirtualPath.ToLower();
 
 				if (!BundleFileMap.ContainsKey(fileKey))
 				{
 					// map file to bundle
-					BundleFileMap[fileKey] = file.IncludedVirtualPath.ToLower();
+					BundleFileMap[fileKey] = bundle.Path;
 				}
 				else if (BundleFileMap[fileKey] != bundle.Path)
 				{

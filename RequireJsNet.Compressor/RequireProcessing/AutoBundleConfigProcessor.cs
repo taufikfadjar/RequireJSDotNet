@@ -12,6 +12,7 @@ using System.Linq;
 using System.Web;
 using System.Web.Optimization;
 using RequireJsNet.Compressor.AutoDependency;
+using RequireJsNet.Compressor.BundlePathResolver;
 using RequireJsNet.Compressor.Helper;
 using RequireJsNet.Compressor.Models;
 using RequireJsNet.Configuration;
@@ -19,23 +20,38 @@ using RequireJsNet.Models;
 
 namespace RequireJsNet.Compressor.RequireProcessing
 {
+	/// <summary>
+	/// Processes the RequireJs config and generates the AutoBundles
+	/// </summary>
 	internal class AutoBundleConfigProcessor : ConfigProcessor
 	{
-		private PathResolver Resolver;
+		/// <summary>
+		/// The PathResolver instance
+		/// </summary>
+		private readonly PathResolver resolver;
 
-		public AutoBundleConfigProcessor(List<string> filePaths)
+		public BundlePathResolverCollection ResolverCollection { get; set; }
+
+		/// <summary>
+		/// Creates a new AutoBundleConfigProcessor
+		/// </summary>
+		/// <param name="filePaths">The paths to the RequireJs conif files</param>
+		/// <param name="entryPoint"></param>
+		public AutoBundleConfigProcessor(List<string> filePaths, string entryPoint)
 		{
-			AlreadyProcessedFileNames = new List<string>();
 			FilePaths = filePaths;
 
-			EntryPoint = "~/Scripts/";
-			Resolver = new PathResolver(EntryPoint);
+			EntryPoint = entryPoint;
+			resolver = new PathResolver(EntryPoint);
 		}
 
+		/// <summary>
+		/// Parses the configuration and returns the generated bundles
+		/// </summary>
+		/// <returns>A BundleCollection of RequireCompressorBundles</returns>
 		public override BundleCollection ParseConfigs()
 		{
 			var bundles = new BundleCollection();
-			
 
 			FindConfigs();
 
@@ -53,7 +69,7 @@ namespace RequireJsNet.Compressor.RequireProcessing
 			// iterate over all bundle definitions of the configuration and build the equivalent web optimization bundles
 			foreach (var bundle in Configuration.AutoBundles.Bundles)
 			{
-				var bundleResult = new RequireCompressorBundle(Resolver.GetOutputPath(bundle.OutputPath, bundle.Id), builder)
+				var bundleResult = new RequireCompressorBundle(resolver.GetOutputPath(bundle.OutputPath, bundle.Id), builder)
 									   {
 											ContainingConfig = bundle.ContainingConfig,
 									   };
@@ -69,7 +85,7 @@ namespace RequireJsNet.Compressor.RequireProcessing
 				EnqueueBundles(bundle.Includes, includeQueue, alreadyProcessedFileNames);
 
 				// construct dependency resolver
-				var processor = new ScriptProcessor(Configuration, Resolver);
+				var processor = new ScriptProcessor(Configuration, resolver);
 
 				// iterate over the includes
 				while(includeQueue.Any())
@@ -79,7 +95,7 @@ namespace RequireJsNet.Compressor.RequireProcessing
 					if (!string.IsNullOrEmpty(include.File))
 					{
 						// include file
-						var filePath = Resolver.RequirePathToVirtualPath(include.File);
+						var filePath = resolver.RequirePathToVirtualPath(include.File);
 		
 						var processedFile = processor.Process(filePath);
 						bundleResult.Include(processedFile);
@@ -91,7 +107,7 @@ namespace RequireJsNet.Compressor.RequireProcessing
 					{
 
 						// get virtual directory path
-						var virtualDirectoryPath = Resolver.RequirePathToVirtualPath(include.Directory, false);
+						var virtualDirectoryPath = resolver.RequirePathToVirtualPath(include.Directory, false);
 						// get absolute directory path
 						var absoluteDirectoryPath = HttpContext.Current.Server.MapPath(virtualDirectoryPath);
 
@@ -103,7 +119,7 @@ namespace RequireJsNet.Compressor.RequireProcessing
 						{
 							var processedFile = processor.Process(file);
 							bundleResult.Include(processedFile);
-							alreadyProcessedFileNames.Add(Resolver.VirtualPathToRequirePath(file));
+							alreadyProcessedFileNames.Add(resolver.VirtualPathToRequirePath(file));
 
 							EnqueueBundles(processedFile.Dependencies, includeQueue, alreadyProcessedFileNames);
 						}
@@ -129,7 +145,7 @@ namespace RequireJsNet.Compressor.RequireProcessing
 		/// <param name="excludeItems">The set of file names to be excluded from enqueuing</param>
 		private static void EnqueueBundles(IEnumerable<AutoBundleItem> bundles, Queue<AutoBundleItem> queue, IEnumerable<string> excludeItems)
 		{
-			foreach (var bundle in bundles)
+			foreach (var bundle in bundles.Distinct(new BundleEqualityComparer()))
 			{
 				if (!excludeItems.Any(r => string.Equals(r, bundle.File, StringComparison.CurrentCultureIgnoreCase))
 					&& !queue.Any(r => string.Equals(r.File, bundle.File, StringComparison.CurrentCultureIgnoreCase)))
@@ -139,7 +155,11 @@ namespace RequireJsNet.Compressor.RequireProcessing
 			}
 		}
 
-		private void WriteOverrideConfigs(BundleCollection bundles)
+		/// <summary>
+		/// Writes an override for the configuration
+		/// </summary>
+		/// <param name="bundles">The generated bundles</param>
+		private void WriteOverrideConfigs(IEnumerable<Bundle> bundles)
 		{
 			var groupings = bundles.GroupBy(r => ((RequireCompressorBundle)r).ContainingConfig).ToList();
 			foreach (var grouping in groupings)
@@ -151,13 +171,21 @@ namespace RequireJsNet.Compressor.RequireProcessing
 			}
 		}
 
+		/// <summary>
+		/// Adds the bundle overrides to the paths section of the RequireJs config
+		/// and composes the override collection
+		/// </summary>
+		/// <param name="bundles">The generated bundles</param>
+		/// <returns></returns>
 		private ConfigurationCollection ComposeCollection(IEnumerable<Bundle> bundles)
 		{
 			var conf = new ConfigurationCollection();
 			conf.Overrides = new List<CollectionOverride>();
 			foreach (var bundle in bundles)
 			{
-				var scripts = bundle.EnumerateFiles(Context).Select(r => Resolver.VirtualPathToRequirePath(r.IncludedVirtualPath)).ToList();
+				var scripts = bundle.EnumerateFiles(Context).Select(r => resolver.VirtualPathToRequirePath(r.IncludedVirtualPath)).ToList();
+				var bundlePath = ResolverCollection.Resolve(resolver, Context, bundle);
+
 				var paths = new RequirePaths
 								{
 									PathList = new List<RequirePath>()
@@ -167,7 +195,7 @@ namespace RequireJsNet.Compressor.RequireProcessing
 					paths.PathList.Add(new RequirePath
 										   {
 											   Key = script,
-											   Value = Resolver.VirtualPathToRequirePath(bundle.Path)
+											   Value = bundlePath
 										   });
 				}
 

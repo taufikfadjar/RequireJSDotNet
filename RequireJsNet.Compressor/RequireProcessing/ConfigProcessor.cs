@@ -9,35 +9,52 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Runtime.Remoting.Channels;
 using System.Web;
-using System.Web.Hosting;
 using System.Web.Optimization;
 using RequireJsNet.Models;
 
 namespace RequireJsNet.Compressor
 {
+	/// <summary>
+	/// Base class for Config Processing
+	/// </summary>
 	internal abstract class ConfigProcessor
 	{
+		/// <summary>
+		/// The config file name pattern
+		/// </summary>
 		protected const string ConfigFileName = "RequireJS.*";
 
-		protected const string DefaultScriptDirectory = "Scripts";
-
+		/// <summary>
+		/// A Bundle Context for the bundles
+		/// </summary>
 		protected BundleContext Context;
 
+		/// <summary>
+		/// The RequireJs entry point as virtual path
+		/// </summary>
 		protected string EntryPoint { get; set; }
 
+		/// <summary>
+		/// The RequireJs configuration
+		/// </summary>
 		protected ConfigurationCollection Configuration { get; set; }
 
-		protected string OutputPath { get; set; }
-
+		/// <summary>
+		/// The paths to the RequireJs configuration files
+		/// </summary>
 		protected List<string> FilePaths { get; set; }
 
-		protected List<string> AlreadyProcessedFileNames { get; set; }
-
+		/// <summary>
+		/// The function used to generate bundles out of 
+		/// the configuration
+		/// </summary>
+		/// <returns>The generated Bundles</returns>
 		public abstract BundleCollection ParseConfigs();
 		
-
+		/// <summary>
+		/// Finds configuration files and adds them
+		/// </summary>
 		protected void FindConfigs()
 		{
 			if (FilePaths.Any())

@@ -40,12 +40,12 @@ namespace RequireJsNet.Compressor.AutoDependency
 		/// <returns>A ProcessedFile representing the processed AMD file.</returns>
 		public ProcessedFile Process(string virtualFilePath)
 		{
-
-			var shim = this.GetShim(_resolver.VirtualPathToRequirePath(virtualFilePath));
-
 			var dependencies = new List<string>();
 
 			var requireFile = new ProcessedFile{IncludedVirtualPath = virtualFilePath};
+			var requireFilePath = _resolver.VirtualPathToRequirePath(virtualFilePath);
+
+			var shim = this.GetShim(requireFilePath);
 
 			// get content
 			var content = new StreamReader(new FileVirtualPathProvider(
@@ -66,31 +66,34 @@ namespace RequireJsNet.Compressor.AutoDependency
 
 				var flattenedResults = result.GetFlattened();
 
-				// ignore require modules and external files
+				// ignore require modules
 				var deps =
 					flattenedResults.SelectMany(r => r.Dependencies)
-						.Where(r => !(r.StartsWith("i18n") || r.StartsWith("//")))
+						.Where(r => !r.StartsWith("i18n"))
 						.Except(new List<string> { "require", "module", "exports" });
 
+				dependencies.AddRange(deps);
 
-				dependencies.AddRange(deps.Select(CheckForOriginalModuleName).ToList());
-
-				var transformations = this.GetTransformations(virtualFilePath, result);
+				var transformations = this.GetTransformations(requireFilePath, result);
 				
 				transformations.ExecuteAll(ref text);
 			}
 			else
 			{
 				// add shim dependencies
-				dependencies.AddRange(shim.Dependencies.Select(r => CheckForOriginalModuleName(r.Dependency)));
+				dependencies.AddRange(shim.Dependencies.Select(r => r.Dependency));
 
 				// shim transformation
-				var trans = ShimFileTransformation.Create(this.CheckForAlias(_resolver.VirtualPathToRequirePath(virtualFilePath)), dependencies);
+				var trans = ShimFileTransformation.Create(this.CheckForAlias(_resolver.VirtualPathToRequirePath(virtualFilePath)), dependencies, shim.Exports);
 				trans.Execute(ref text);
 			}
 
 			requireFile.ProcessedContent = text;
-			requireFile.Dependencies = dependencies.Distinct().Select(r => new AutoBundleItem { File = r }).ToList();
+			// ignore duplicates and remove external files from cdn
+			requireFile.Dependencies = dependencies.Distinct()
+				.Select(r => new AutoBundleItem { File = this.CheckForOriginalModuleName(r) })
+				.Where(r => !r.File.StartsWith("//"))
+				.ToList();
 
 			return requireFile;
 		}
@@ -143,11 +146,15 @@ namespace RequireJsNet.Compressor.AutoDependency
 			return result;
 		}
 
-		private TransformationCollection GetTransformations(string virtualFilePath, VisitorResult result)
+		/// <summary>
+		/// Returns a collection of transformations to be executed
+		/// </summary>
+		/// <param name="requirePath">The require path of the file to be transformed</param>
+		/// <param name="result">The visitor result for the file</param>
+		/// <returns>A transformation collection</returns>
+		private TransformationCollection GetTransformations(string requirePath, VisitorResult result)
 		{
 			var trans = new TransformationCollection();
-
-			var requirePath = _resolver.VirtualPathToRequirePath(virtualFilePath);
 
 			if (result.RequireCalls.Any())
 			{

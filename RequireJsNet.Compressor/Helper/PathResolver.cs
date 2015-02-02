@@ -1,22 +1,34 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.IO;
-using System.Linq;
-using System.Management.Instrumentation;
-using System.Text;
 using System.Web;
 
 namespace RequireJsNet.Compressor.Helper
 {
-	internal class PathResolver
+	/// <summary>
+	/// Resolves virtual and require paths 
+	/// </summary>
+	public class PathResolver
 	{
+		/// <summary>
+		/// The RequireJs entry point
+		/// </summary>
 		private readonly string _entryPoint;
 
+		/// <summary>
+		/// Creates a new path resolver
+		/// </summary>
+		/// <param name="entryPoint">The RequireJs entry point</param>
 		public PathResolver(string entryPoint)
 		{
 			_entryPoint = entryPoint;
 		}
 
+		/// <summary>
+		/// Converts a require path to a virtual file path
+		/// </summary>
+		/// <param name="requirePath">The require path</param>
+		/// <param name="appendExtension">Whether to append the .js extension. Usefull when handling directories</param>
+		/// <returns>The virtual path if existent</returns>
 		public string RequirePathToVirtualPath(string requirePath, bool appendExtension = true)
 		{
 			if (requirePath.StartsWith("//"))
@@ -40,14 +52,26 @@ namespace RequireJsNet.Compressor.Helper
 			return path;
 		}
 
+		/// <summary>
+		/// Converts a virtual file path to a require path
+		/// This method cannot handle directories
+		/// </summary>
+		/// <param name="virtualFilePath">The virtual path to the AMD file</param>
+		/// <returns>The require path</returns>
 		public string VirtualPathToRequirePath(string virtualFilePath)
 		{
 			var requirePath = VirtualPathUtility.MakeRelative(_entryPoint, virtualFilePath);
-			
-			return requirePath.Replace(".js",string.Empty);
+
+			return requirePath.Remove(requirePath.Length - 3);
 		}
 
-
+		/// <summary>
+		/// Combines to paths to a complete virtual output path
+		/// </summary>
+		/// <param name="basePath">The base path has to be a rooted virtual path</param>
+		/// <param name="filePath">The file path has to be a path relative to the basepath</param>
+		/// <param name="appendExtension">Whether to append the .js extension. Usefull when handling directories</param>
+		/// <returns>The complete rooted virtual output path</returns>
 		public string GetOutputPath(string basePath, string filePath, bool appendExtension = true)
 		{
 			var path = VirtualPathUtility.Combine(basePath, filePath);

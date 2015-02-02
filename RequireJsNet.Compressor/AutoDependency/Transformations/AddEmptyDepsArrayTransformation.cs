@@ -1,21 +1,23 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-
+﻿using System.Linq;
 using Jint.Parser.Ast;
-
 using RequireJsNet.Compressor.Parsing;
 using RequireJsNet.Compressor.Transformations;
-using System.Web.Optimization;
 
 namespace RequireJsNet.Compressor.AutoDependency.Transformations
 {
+	/// <summary>
+	/// Adds an empty array of dependencies before the last argument of a call
+	/// </summary>
 	internal class AddEmptyDepsArrayTransformation : IRequireTransformation
 	{
+		/// <inheritdoc />
 		public RequireCall RequireCall { get; set; }
 
+		/// <summary>
+		/// Creates the transformation
+		/// </summary>
+		/// <param name="call">a require or define call</param>
+		/// <returns>the created transformation</returns>
 		public static AddEmptyDepsArrayTransformation Create(RequireCall call)
 		{
 			return new AddEmptyDepsArrayTransformation
@@ -24,6 +26,7 @@ namespace RequireJsNet.Compressor.AutoDependency.Transformations
 			};
 		}
 
+		/// <inheritdoc />
 		public void Execute(ref string script)
 		{
 			var call = RequireCall.ParentNode.Node.As<CallExpression>();
@@ -34,6 +37,7 @@ namespace RequireJsNet.Compressor.AutoDependency.Transformations
 			script = beforeInsertPoint + "[]," + afterInsertPoint;
 		}
 
+		/// <inheritdoc />
 		public int[] GetAffectedRange()
 		{
 			var call = RequireCall.ParentNode.Node.As<CallExpression>();
