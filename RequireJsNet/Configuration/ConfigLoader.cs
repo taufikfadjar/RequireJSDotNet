@@ -55,7 +55,7 @@ namespace RequireJsNet.Configuration
 				return;
 			}
 
-			var potential = this.paths.Select(r => PathHelpers.GetOverridePath(r)).ToList();
+			var potential = this.paths.Select(r => PathHelper.GetOverridePath(r)).ToList();
 			paths.AddRange(potential.Where(r => File.Exists(r)));
 		}
 

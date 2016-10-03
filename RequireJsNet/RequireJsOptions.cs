@@ -8,8 +8,8 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Web;
 using RequireJsNet.EntryPointResolver;
+using Microsoft.AspNetCore.Http;
 
 namespace RequireJsNet
 {
@@ -30,12 +30,7 @@ namespace RequireJsNet
         private const string PageOptionsKey = "pageOptions";
 
         public static readonly RequireEntryPointResolverCollection ResolverCollection = new RequireEntryPointResolverCollection();
-
-        static RequireJsOptions()
-        {
-            ResolverCollection.Add(new DefaultEntryPointResolver());
-        }
-
+        
 	    public static void LockGlobalOptions()
 	    {
 		    websiteOptionsLocked = true;
@@ -51,7 +46,7 @@ namespace RequireJsNet
 			return websiteOptions;
         }
 
-		public static Dictionary<string, object> GetPageOptions(HttpContextBase context)
+		public static Dictionary<string, object> GetPageOptions(HttpContext context)
         {
             var page = context.Items[PageOptionsKey] as Dictionary<string, object>;
             if (page == null)
@@ -60,20 +55,14 @@ namespace RequireJsNet
             }
 
             return (Dictionary<string, object>)context.Items[PageOptionsKey];
-        }
+        }             
 
-        public static Dictionary<string, object> GetPageOptions()
-        {
-            return GetPageOptions(new HttpContextWrapper(GetCurrentContext()));
-        }
-       
-
-        public static void Add(string key, object value, RequireJsOptionsScope scope = RequireJsOptionsScope.Page)
+        public static void AddRequireJsOption(this HttpContext context, string key, object value, RequireJsOptionsScope scope = RequireJsOptionsScope.Page)
         {
             switch (scope)
             {
                 case RequireJsOptionsScope.Page:
-                    var pageOptions = GetPageOptions();
+                    var pageOptions = GetPageOptions(context);
                     if (pageOptions.Keys.Contains(key))
                     {
                         pageOptions.Remove(key);
@@ -99,7 +88,8 @@ namespace RequireJsNet
         }
 
 
-        public static void Add(
+        public static void AddRequireJsOption(
+            this HttpContext context, 
             string key,
             Dictionary<string, object> value,
             RequireJsOptionsScope scope = RequireJsOptionsScope.Page,
@@ -109,7 +99,7 @@ namespace RequireJsNet
             switch (scope)
             {
                 case RequireJsOptionsScope.Page:
-                    dictToModify = GetPageOptions();
+                    dictToModify = GetPageOptions(context);
                     break;
                 case RequireJsOptionsScope.Global:
 					if (websiteOptionsLocked)
@@ -139,18 +129,18 @@ namespace RequireJsNet
             }
         }
 
-        public static object GetByKey(string key, RequireJsOptionsScope scope)
+        public static object GetRequireJsOptionByKey(this HttpContext context, string key, RequireJsOptionsScope scope)
         {
-            return scope == RequireJsOptionsScope.Page ? GetPageOptions().FirstOrDefault(r => r.Key == key)
+            return scope == RequireJsOptionsScope.Page ? GetPageOptions(context).FirstOrDefault(r => r.Key == key)
                                                        : GetGlobalOptions().FirstOrDefault(r => r.Key == key);
         }
 
-        public static void Clear(RequireJsOptionsScope scope)
+        public static void ClearRequireJsOptions(this HttpContext context, RequireJsOptionsScope scope)
         {
             switch (scope)
             {
                 case RequireJsOptionsScope.Page:
-                    GetPageOptions().Clear();
+                    GetPageOptions(context).Clear();
                     break;
                 case RequireJsOptionsScope.Global:
                     GetGlobalOptions().Clear();
@@ -158,10 +148,10 @@ namespace RequireJsNet
             }
         }
 
-        public static void ClearAll()
+        public static void ClearAllRequireJsOptions(this HttpContext context)
         {
-            Clear(RequireJsOptionsScope.Global);
-            Clear(RequireJsOptionsScope.Page);
+            ClearRequireJsOptions(context, RequireJsOptionsScope.Global);
+            ClearRequireJsOptions(context, RequireJsOptionsScope.Page);
         }
         
 
@@ -177,16 +167,6 @@ namespace RequireJsNet
 
                 to.Add(item.Key, item.Value);
             }
-        }
-
-        private static HttpContext GetCurrentContext()
-        {
-            if (HttpContext.Current == null)
-            {
-                throw new Exception("HttpContext.Current is null. RequireJsNet needs a HttpContext in order to work.");
-            }
-
-            return HttpContext.Current;
-        }
+        }        
     }
 }

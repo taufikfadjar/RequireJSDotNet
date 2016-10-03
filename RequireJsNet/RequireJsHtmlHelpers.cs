@@ -7,24 +7,37 @@
 
 using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
-using System.Web.Mvc;
 
 using RequireJsNet.Configuration;
 using RequireJsNet.Helpers;
 using RequireJsNet.Models;
+using Microsoft.AspNetCore.Hosting;
+using RequireJsNet.EntryPointResolver;
+using Microsoft.AspNetCore.Mvc.Rendering;
+using System.Text;
+using Microsoft.AspNetCore.Html;
 
 namespace RequireJsNet
 {
-	using System.Web;
-
-	public static class RequireJsHtmlHelpers
+    public class RequireJsHtml
 	{
+        private readonly PathHelper pathHelper;
+
+        public RequireJsHtml(IHostingEnvironment hostingEnvironment)
+        {
+            this.pathHelper = new PathHelper(hostingEnvironment);
+            
+            if(RequireJsOptions.ResolverCollection.IsEmpty())
+            {
+                RequireJsOptions.ResolverCollection.Add(new DefaultEntryPointResolver(hostingEnvironment));
+            }
+        }
+
 		/// <summary>
 		/// Setup RequireJS to be used in layouts
 		/// </summary>
-		/// <param name="html">
+		/// <param name="view">
 		/// Html helper.
 		/// </param>s
 		/// <param name="config">
@@ -33,8 +46,8 @@ namespace RequireJsNet
 		/// <returns>
 		/// The <see cref="MvcHtmlString"/>.
 		/// </returns>
-		public static MvcHtmlString RenderRequireJsSetup(
-			this HtmlHelper html,
+		public HtmlString RenderRequireJsSetup(
+            ViewContext view,
 			RequireRendererConfiguration config,
 			string[] globalScriptCalls = null
 			)
@@ -44,7 +57,7 @@ namespace RequireJsNet
 				throw new ArgumentNullException("config");
 			}
 
-			var entryPointPath = html.RequireJsEntryPoint(config.EntryPointRoot);
+			var entryPointPath = RequireJsEntryPoint(view, config.EntryPointRoot);
 			var entryPointString = "~/";
 
 			if (entryPointPath != null)
@@ -59,8 +72,8 @@ namespace RequireJsNet
 
 			var processedConfigs = config.ConfigurationFiles.Select(r =>
 			{
-				var resultingPath = html.ViewContext.HttpContext.MapPath(r);
-				PathHelpers.VerifyFileExists(resultingPath);
+				var resultingPath = this.pathHelper.MapPath(r);
+				PathHelper.VerifyFileExists(resultingPath);
 				return resultingPath;
 			}).ToList();
 
@@ -68,9 +81,9 @@ namespace RequireJsNet
 			var resultingConfig = loader.Get();
 
 			var overrider = new ConfigOverrider();
-			overrider.Override(resultingConfig, entryPointString.ToModuleName());
+			overrider.Override(resultingConfig, PathHelper.ToModuleName(entryPointString));
 
-			var locale = config.LocaleSelector(html);
+			var locale = config.LocaleSelector(view);
 
 			var outputConfig = new JsonRequireOutput
 			{
@@ -95,60 +108,75 @@ namespace RequireJsNet
 			var options = new JsonRequireOptions
 			{
 				Locale = locale,
-				PageOptions = RequireJsOptions.GetPageOptions(html.ViewContext.HttpContext),
+				PageOptions = RequireJsOptions.GetPageOptions(view.HttpContext),
 				WebsiteOptions = RequireJsOptions.GetGlobalOptions()
 			};
 
 			config.ProcessOptions(options);
 
-			var configBuilder = new JavaScriptBuilder();
-			configBuilder.AddStatement(JavaScriptHelpers.SerializeAsVariable(options, "requireConfig"));
-			configBuilder.AddStatement(JavaScriptHelpers.SerializeAsVariable(outputConfig, "require"));
+			var configBuilder = new StringBuilder();
+            configBuilder.Append("<script>");
+            configBuilder.AppendLine();
+            configBuilder.Append(JavaScriptHelpers.SerializeAsVariable(options, "requireConfig"));
+            configBuilder.AppendLine();
+			configBuilder.Append(JavaScriptHelpers.SerializeAsVariable(outputConfig, "require"));
+            configBuilder.Append("</script>");
+            configBuilder.AppendLine();
 
-			var requireRootBuilder = new JavaScriptBuilder();
-			requireRootBuilder.AddAttributesToStatement("src", config.RequireJsUrl);
+            var requireRootBuilder = new StringBuilder();
+            requireRootBuilder.Append("<script src='");
+            requireRootBuilder.Append(config.RequireJsUrl);
+            requireRootBuilder.Append("'></script>");
+            requireRootBuilder.AppendLine();
 
-			JavaScriptBuilder requireEntryPointBuilder = null;
+            StringBuilder requireEntryPointBuilder = null;
 
 			if(entryPointPath != null)
 			{
-				requireEntryPointBuilder = new JavaScriptBuilder();
-				requireEntryPointBuilder.AddStatement(
+				requireEntryPointBuilder = new StringBuilder();
+                requireEntryPointBuilder.Append("<script>");
+                requireEntryPointBuilder.AppendLine();
+                requireEntryPointBuilder.Append(
 				JavaScriptHelpers.MethodCall(
 				"require", 
 				(object)new[] { entryPointString }));
-			}
+                requireEntryPointBuilder.Append("</script>");
+                requireEntryPointBuilder.AppendLine();
+            }
 
 
 			var result = 
-				configBuilder.Render() 
+				configBuilder.ToString() 
 				+ Environment.NewLine
-				+ requireRootBuilder.Render() 
-				+ Environment.NewLine;
+				+ requireRootBuilder.ToString()
+                + Environment.NewLine;
 
 			if (globalScriptCalls != null)
 			{
-				var globalScriptCallsBuilder = new JavaScriptBuilder();
-				globalScriptCallsBuilder.AddStatement(
+				var globalScriptCallsBuilder = new StringBuilder();
+                globalScriptCallsBuilder.Append("<script>");
+                globalScriptCallsBuilder.AppendLine();
+                globalScriptCallsBuilder.Append(
 				JavaScriptHelpers.MethodCall(
 					"require",
 					(object)globalScriptCalls));
+                globalScriptCallsBuilder.Append("</script>");
+                globalScriptCallsBuilder.AppendLine();
 
-				result += globalScriptCallsBuilder.Render();
+                result += globalScriptCallsBuilder.ToString();
 			}
 			if(requireEntryPointBuilder != null)
 			{
-				result += requireEntryPointBuilder.Render();
+				result += requireEntryPointBuilder.ToString();
 			}
-			
 
-			return new MvcHtmlString(result);
+			return new HtmlString(result);
 		}
 
 		/// <summary>
 		/// Returns entry point script relative path
 		/// </summary>
-		/// <param name="html">
+		/// <param name="view">
 		/// The HtmlHelper instance.
 		/// </param>
 		/// <param name="root">
@@ -157,11 +185,9 @@ namespace RequireJsNet
 		/// <returns>
 		/// The <see cref="MvcHtmlString"/>.
 		/// </returns>
-		public static MvcHtmlString RequireJsEntryPoint(this HtmlHelper html, string root)
+		public static string RequireJsEntryPoint(ViewContext view, string root)
 		{
-			var result = RequireJsOptions.ResolverCollection.Resolve(html.ViewContext, root);
-
-			return result != null ? new MvcHtmlString(result) : null;
+			return RequireJsOptions.ResolverCollection.Resolve(view, root);
 		}
 
 		public static Dictionary<string, int> ToJsonDictionary<TEnum>()
@@ -169,8 +195,5 @@ namespace RequireJsNet
 			var enumType = typeof(TEnum);
 			return Enum.GetNames(enumType).ToDictionary(r => r, r => Convert.ToInt32(Enum.Parse(enumType, r)));
 		}
-
-
-		
 	}
 }

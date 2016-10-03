@@ -5,23 +5,25 @@
 // http://www.opensource.org/licenses/mit-license.php
 // http://www.gnu.org/licenses/gpl.html
 
+using Microsoft.AspNetCore.Hosting;
 using System;
 using System.IO;
 using System.Linq;
-using System.Web;
 
 namespace RequireJsNet.Helpers
 {
-    internal static class PathHelpers
+    internal class PathHelper
     {
-        public static string MapPath(this HttpContextBase context, string path)
-        {
-            if (path.StartsWith("~"))
-            {
-                path = context.Server.MapPath(path);
-            }
+        private readonly IHostingEnvironment environment;
 
-            return path;
+        public PathHelper(IHostingEnvironment environment)
+        {
+            this.environment = environment;
+        }
+
+        public string MapPath(string path)
+        {          
+            return Path.Combine(this.environment.WebRootPath, path);
         }
 
         public static void VerifyFileExists(string path)
@@ -32,7 +34,7 @@ namespace RequireJsNet.Helpers
             }
         }
 
-        public static string GetPathWithoutExtension(this string path)
+        public static string GetPathWithoutExtension(string path)
         {
             if (path != null)
             {
@@ -64,12 +66,12 @@ namespace RequireJsNet.Helpers
             return newName;
         }
 
-        public static string GetRequirePath(this string path)
+        public static string GetRequirePath(string path)
         {
-            return path.GetPathWithoutExtension().Replace("\\\\", "/").Replace("\\", "/");
+            return GetPathWithoutExtension(path).Replace("\\\\", "/").Replace("\\", "/");
         }
 
-        public static string ToModuleName(this string relativePath)
+        public static string ToModuleName(string relativePath)
         {
             var initial = relativePath;
             relativePath = initial.Replace('/', Path.DirectorySeparatorChar);
@@ -90,7 +92,7 @@ namespace RequireJsNet.Helpers
             var pathUri = new Uri(filespec);
 
             // Folders must end in a slash
-            if (!folder.EndsWith(Path.DirectorySeparatorChar.ToString()))
+            if (!folder.EndsWith(Path.DirectorySeparatorChar.ToString()) && !folder.EndsWith("/"))
             {
                 folder += Path.DirectorySeparatorChar;
             }
@@ -102,7 +104,7 @@ namespace RequireJsNet.Helpers
 
         public static string GetRequireRelativePath(string folder, string file)
         {
-            return GetRelativePath(file, folder).ToModuleName();
+            return ToModuleName(GetRelativePath(file, folder));
         }
 
         // will return the exact fileName for a supplied file path

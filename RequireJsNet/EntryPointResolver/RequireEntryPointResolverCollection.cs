@@ -2,8 +2,9 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
-using System.Web.Mvc;
 using RequireJsNet.EntryPointResolver;
+using Microsoft.AspNetCore.Mvc.Rendering;
+using Microsoft.AspNetCore.Mvc;
 
 namespace RequireJsNet
 {
@@ -18,6 +19,11 @@ namespace RequireJsNet
                 resolvers.Clear();
             }
             
+        }
+
+        public bool IsEmpty()
+        {
+            return resolvers.Count == 0;
         }
 
         public void Prepend(IEntryPointResolver resolver)
