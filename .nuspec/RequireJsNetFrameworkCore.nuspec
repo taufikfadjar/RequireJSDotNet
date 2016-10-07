@@ -1,0 +1,23 @@
+﻿<?xml version="1.0"?>
+<package xmlns="http://schemas.microsoft.com/packaging/2011/08/nuspec.xsd">
+  <metadata>
+    <version>1.0.0-alpha</version>
+    <authors>Taufik Fadjar</authors>
+    <id>RequireJsNetFrameworkCore</id>
+    <title>RequireJS.NET Framework Core Fork</title>
+    <requireLicenseAcceptance>false</requireLicenseAcceptance>
+    <description>RequireJS.NET integrates RequireJS script loader with ASP.NET Framework Core MVC </description>
+    <tags>JavaScript, AMD, RequireJS, ASP.NET MVC, NET Framework Core</tags>
+    <language>en-US</language>
+    <projectUrl>https://github.com/taufikfadjar/RequireJSDotNet/tree/dotnetframeworkcore</projectUrl>
+	<licenseUrl>https://github.com/rangp/RequireJSDotNet/blob/master/MIT-License.txt</licenseUrl>
+    <frameworkAssemblies>
+      <frameworkAssembly assemblyName="Microsoft.Web.Infrastructure" targetFramework=".NETFramework4.5.2" />
+    </frameworkAssemblies>
+    <dependencies>
+      <dependency id="Newtonsoft.Json" version="9.0.1" />
+	  <dependency id="Microsoft.AspNetCore.Mvc.Abstractions" version="1.0.0" />
+	  <dependency id="Microsoft.AspNetCore.Mvc.ViewFeatures" version="1.0.0" />
+    </dependencies>
+  </metadata>
+</package>

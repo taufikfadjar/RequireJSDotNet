@@ -1,9 +1,17 @@
 
-#### This is a fork of the RequireJsDotNet Project by Veritech:
+
+#### This is a fork of the RequireJsDotNet Project by Rangp:
 
 Link to the original repository: https://github.com/vtfuture/RequireJSDotNet
+Link tp Rangp repository: https://github.com/rangp/RequireJSDotNet
 
-Main objectives for this fork are to integrate with Typescript's external module syntax, 
+Main objectives for this fork are just port to dot.net framework core 
+
+
+
+#####  Note From  Rangp repository #####
+
+Rangp repository has already integrated with Typescript's external module syntax, 
 to allow full use of the functionality of requirejs and to implement and effective cache-busting mechanism. 
 
 ##### The following changes have been made to the compressor
@@ -26,3 +34,4 @@ tracking scripts, layout functions, error handlers etc. have to be loaded on eve
 
 
 See the RequireJsNet.Examples project for a use scenario of these features.
+
