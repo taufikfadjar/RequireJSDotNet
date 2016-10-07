@@ -18,7 +18,7 @@ namespace RequireJSNetFrameworkCore.EntryPointResolver
             this.pathHelper = new PathHelper(environment);
         }
 
-        public string Resolve(ViewContext viewContext, string entryPointRoot)
+        public virtual string Resolve(ViewContext viewContext, string entryPointRoot)
         {
             var routingInfo = viewContext.GetRoutingInfo();
             var rootUrl = string.Empty;

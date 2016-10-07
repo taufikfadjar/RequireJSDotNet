@@ -29,6 +29,7 @@ namespace RequireJsNet.CoreExamples
         {
             // Add framework services.
             services.AddMvc();
+           
             services.AddSingleton<RequireJsNet.RequireJsHtml>();
         }
 

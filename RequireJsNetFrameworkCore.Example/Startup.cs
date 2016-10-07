@@ -12,8 +12,12 @@ namespace RequireJsNetFrameworkCore.Example
 {
     public class Startup
     {
+
+        private IHostingEnvironment _env;
         public Startup(IHostingEnvironment env)
         {
+            _env = env;
+
             var builder = new ConfigurationBuilder()
                 .SetBasePath(env.ContentRootPath)
                 .AddJsonFile("appsettings.json", optional: true, reloadOnChange: true)
@@ -37,6 +41,7 @@ namespace RequireJsNetFrameworkCore.Example
             services.AddApplicationInsightsTelemetry(Configuration);
 
             services.AddMvc();
+            //RequireJSNetFrameworkCore.RequireJsOptions.ResolverCollection.Add(new GeneralEntryPointResolver(_env));
             services.AddSingleton<RequireJSNetFrameworkCore.RequireJsHtml>();
         }
 

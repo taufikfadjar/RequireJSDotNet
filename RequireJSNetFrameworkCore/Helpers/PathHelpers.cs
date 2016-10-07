@@ -12,7 +12,7 @@ using System.Linq;
 
 namespace RequireJSNetFrameworkCore.Helpers
 {
-    internal class PathHelper
+    public class PathHelper
     {
         private readonly IHostingEnvironment environment;
 
